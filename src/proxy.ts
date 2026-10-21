@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "@/lib/auth/constants";
-import { API_BASE_URL } from "@/lib/config";
+import { API_ORIGIN } from "@/lib/config";
 
 const PROTECTED = /^\/(portfolio|profile|admin)(\/|$)/;
 
@@ -15,7 +15,7 @@ function csp(nonce: string) {
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self'",
-    `connect-src 'self' ${new URL(API_BASE_URL).origin}`,
+    `connect-src 'self' ${API_ORIGIN}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -46,11 +46,13 @@ export function proxy(request: NextRequest) {
   return response;
 }
 
-// Link prefetches skip the proxy, so a signed-out redirect is never cached in the client router and replayed after login
+// Link prefetches skip the proxy, so a signed-out redirect is never cached in the client router and replayed after login.
+// Only /api/* route handlers skip it (the trailing slash keeps /apiary and the like covered): they get no CSP and
+// no session gate, so each one must check auth itself.
 export const config = {
   matcher: [
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
+      source: "/((?!api/|_next/static|_next/image|favicon.ico).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
