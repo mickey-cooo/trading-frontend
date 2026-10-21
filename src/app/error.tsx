@@ -1,5 +1,8 @@
 "use client";
 
+import Button from "@mui/material/Button";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import { useEffect } from "react";
 
 export default function Error({
@@ -14,14 +17,12 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-16 text-center">
-      <h2 className="text-xl font-semibold">Something went wrong</h2>
-      <button
-        onClick={reset}
-        className="rounded-full border border-black/10 px-5 py-2 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-      >
-        Try again
-      </button>
-    </div>
+    <Stack spacing={2} sx={{ alignItems: "center", justifyContent: "center", minHeight: "100dvh", p: 4, textAlign: "center" }}>
+      <Typography variant="h2">This screen failed to load</Typography>
+      <Typography color="text.secondary">Your orders and balances are safe. Try again.</Typography>
+      <Button onClick={reset} variant="contained" size="large">
+        Reload screen
+      </Button>
+    </Stack>
   );
 }

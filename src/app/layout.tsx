@@ -1,35 +1,48 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import InitColorSchemeScript from "@mui/material/InitColorSchemeScript";
+import { headers } from "next/headers";
+import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
+import { SessionExpiryRedirect } from "@/components/common/SessionExpiryRedirect";
 import { StoreProvider } from "@/lib/store-provider";
+import { ThemeRegistry } from "@/theme/ThemeRegistry";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const hanken = Hanken_Grotesk({
+  variable: "--font-ui",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const mono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Next.js Starter",
-  description: "A fork-able Next.js starter",
+  title: "ApexTrade",
+  description: "Spot trading, instant swap and portfolio on one fast, eye-friendly terminal.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // reading the per-request nonce makes every page render dynamically, as a nonce CSP requires
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${hanken.variable} ${mono.variable}`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
-        <StoreProvider>{children}</StoreProvider>
+      <body>
+        <InitColorSchemeScript nonce={nonce} attribute="data-mui-color-scheme" defaultMode="system" />
+        <ThemeRegistry nonce={nonce}>
+          <StoreProvider>
+            <SessionExpiryRedirect />
+            {children}
+          </StoreProvider>
+        </ThemeRegistry>
       </body>
     </html>
   );
