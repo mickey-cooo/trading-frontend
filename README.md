@@ -1,76 +1,85 @@
-Fork-able Next.js starter. App Router · TypeScript · React · Redux Toolkit · Tailwind CSS. Ships one generic `example` domain as a working pattern to copy — replace/delete it once you've added your own.
+# ApexTrade
+
+Crypto spot-trading front end: live candlestick terminal, one-screen swap, portfolio and admin price publishing. Dark ("Nocturne Trade") and light ("Glacial Capital") themes. See [PRODUCT.md](PRODUCT.md) for the product brief and what the backend does not offer.
+
+## Stack
+
+- Next.js 16 (App Router, React Compiler), React 19, TypeScript
+- MUI 9 (`@mui/material`, `@mui/x-charts`), Emotion
+- TradingView `lightweight-charts` for candles, `three` for the swap animation
+- Redux Toolkit for UI state, Axios for the API, `react-hook-form` + `yup` for forms
 
 ## Getting started
 
+Needs the Spring Boot backend running (default `http://localhost:8080/api/v1`).
+
 ```bash
+yarn install
+cp .env.example .env
 yarn dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:8005](http://localhost:8005). The port is `PORT` in `.env`; the backend CORS only allows 8005.
+
+| Script | What it does |
+|---|---|
+| `yarn dev` | dev server, loads `.env` first so `PORT` applies |
+| `yarn build` | production build |
+| `yarn start` | serve the production build |
+| `yarn lint` | eslint |
+
+### Environment
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8080/api/v1` | backend base URL, also allowed in the CSP `connect-src` |
+| `PORT` | `8005` | dev/start server port |
+
+## Routes
+
+| Route | Access | Page |
+|---|---|---|
+| `/trade` | public | candlestick chart, EMA/RSI/MACD, order form, orders deck |
+| `/markets` | public | all markets with 24h stats and sparklines |
+| `/swap` | public | USDT <-> coin swap (a MARKET order) |
+| `/portfolio` | signed in | balances, allocation, account activity |
+| `/profile` | signed in | view and edit account details |
+| `/admin` | signed in | publish prices |
+| `/login`, `/session-expired` | public | auth |
 
 ## Folder structure
 
 ```
 src/
-├── app/                        # routes only — folders = URL segments
-│   ├── layout.tsx              # root layout (wraps app in <StoreProvider>)
-│   ├── page.tsx                # home route ("/")
-│   ├── loading.tsx             # loading UI (Suspense boundary)
-│   ├── error.tsx               # error boundary
-│   ├── not-found.tsx           # 404 UI
-│   └── api/health/route.ts     # example route handler
-│
-├── components/
-│   ├── layout/                 # generic app chrome: AppLayout, Header, Sidebar
-│   └── common/                 # generic reusable UI: Button, Modal, LoadingSpinner
-├── hooks/
-│   └── common/                 # generic reusable hook: useFileUpload
-├── services/
-│   └── example.service.ts      # example: functions calling apiClient, normalized errors
+├── app/
+│   ├── (app)/              # routes inside the app shell: trade, markets, swap, portfolio, profile, admin
+│   ├── login/, session-expired/
+│   ├── layout.tsx          # root layout: theme, store, per-request CSP nonce
+│   └── api/health/         # route handler
+├── components/             # per-page UI: trade, markets, swap, portfolio, profile, admin
+│   ├── layout/             # AppShell, TickerStrip (scrolling prices), AccountMenu, ThemeToggle
+│   └── common/             # shared UI: Panel, Delta, Sparkline, Toast, ...
+├── hooks/trading/          # data hooks: markets, snapshots, candle feed (SSE), polling
+├── services/               # API calls, one file per domain
 ├── lib/
-│   ├── axios/client.ts         # one configured axios instance (JWT refresh + 401 redirect)
-│   ├── slices/uiSlice.ts       # generic UI state (sidebar/theme) — not domain data
-│   ├── store.ts                # configureStore, registers slices
-│   ├── hooks.ts                # typed useAppSelector / useAppDispatch
-│   └── store-provider.tsx      # <StoreProvider> client wrapper
-├── types/
-│   └── example.type.ts         # example: shape of a domain type file
-└── app/globals.css
+│   ├── axios/client.ts     # axios instance: Bearer token, single-flight refresh
+│   ├── auth/               # token session (localStorage + flag cookie), safeNext
+│   ├── indicators.ts, stats.ts, format.ts
+│   └── store.ts, slices/   # Redux store, UI slice
+├── theme/                  # MUI theme and registry
+├── types/trading.ts        # API types
+└── proxy.ts                # CSP nonce + signed-out redirect
 ```
 
-`app/` holds routing files only. Anything reusable across routes (components, hooks, services, types, state) lives in the matching top-level `src/` folder — per [Next.js's recommended project organization](https://nextjs.org/docs/app/getting-started/project-structure#organizing-your-project).
+## Auth and security
 
-## Adding your first domain
+- Access and refresh tokens live in `localStorage`. A `has_session` flag cookie lets `src/proxy.ts` redirect signed-out visitors away from `/portfolio`, `/profile` and `/admin`. It is a hint only; the API checks the Bearer token on every request.
+- Refresh tokens rotate and a reused one revokes the login, so refreshes run one at a time across tabs (`navigator.locks`).
+- `src/proxy.ts` sets a per-request nonce CSP, so every page renders dynamically. `next.config.ts` adds `X-Frame-Options`, nosniff and referrer headers.
+- Known gap: tokens in `localStorage` are readable by any script that runs on the page. Moving the refresh token to an httpOnly cookie needs backend support.
 
-One data domain = one service file + one types file + one state slice. Don't mix domains in one file. Use `example.*` as the template:
+## Notes
 
-1. `src/types/<domain>.type.ts` — shared TS types for the domain (see `example.type.ts`)
-2. `src/services/<domain>.service.ts` — API calls for the domain, using `apiClient` from `src/lib/axios/client.ts`, errors normalized via `isAxiosError` (see `example.service.ts`)
-3. `src/lib/slices/<domain>Slice.ts` — Redux Toolkit slice, then register its reducer in `src/lib/store.ts`
-4. `src/hooks/<domain>/use<Domain>.ts` — wraps the service + dispatch/selector calls; business logic (fetching, mutating) lives here, not in components
-5. `src/components/<domain>/...` — presentational components that call the hook
-6. `src/app/<route>/page.tsx` — wire the route to the hook/components
-
-Once your first real domain exists, delete `example.service.ts` / `example.type.ts` — they're a pattern to copy, not a dependency.
-
-### Layout chrome
-
-`components/layout/AppLayout` (+ `Header`, `Sidebar`) is a generic shell wired to `uiSlice`'s `sidebarOpen` state. It's not wired into `app/layout.tsx` by default — wrap your routes with it once you have real navigation to show.
-
-### Routing conventions (standard Next.js, use as needed)
-
-- Route groups `(group)` — organize routes without affecting the URL, e.g. `app/(marketing)/about/page.tsx`
-- Private folders `_folder` — opt a folder out of routing, e.g. `app/blog/_components/`
-- Per-segment `loading.tsx` / `error.tsx` / `not-found.tsx` — add alongside a route's `page.tsx` when that segment needs its own boundary
-
-### Hook convention
-
-In every hook/component, declare all `useState` calls first, grouped at the top, before any `useEffect` (or other hook) calls. Don't interleave state with effects. See `useFileUpload` for an example.
-
-## Stack
-
-- [Next.js App Router](https://nextjs.org/docs/app)
-- TypeScript
-- Redux Toolkit + React Redux (`src/lib/store.ts`, `src/lib/slices/`)
-- Axios (`src/lib/axios/client.ts`)
-- Tailwind CSS
+- All amounts and prices are decimal strings from the API.
+- 24h change, high/low, sparklines and EMA/RSI/MACD are computed client-side from candles.
+- This Next.js version has breaking changes; read `node_modules/next/dist/docs/` before changing framework-level code (see `AGENTS.md`).
