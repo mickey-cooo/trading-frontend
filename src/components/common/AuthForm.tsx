@@ -21,7 +21,7 @@ import * as yup from "yup";
 import { Logo } from "@/components/common/Logo";
 import { safeNext } from "@/lib/auth/redirect";
 import { getErrorMessage } from "@/lib/axios/client";
-import { useIsAuthed, useSessionCookieSync } from "@/lib/auth/session";
+import { useIsAuthed } from "@/lib/auth/session";
 import { login, register } from "@/services/auth.service";
 
 // label sits above the input: a floating label squeezes into the border when focused
@@ -91,8 +91,7 @@ export function AuthForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
-  // a visitor who is already signed in (or whose gate cookie lapsed) has nothing to do here
-  useSessionCookieSync();
+  // a visitor who is already signed in has nothing to do here
   const authed = useIsAuthed();
   useEffect(() => {
     if (authed) router.replace(next);

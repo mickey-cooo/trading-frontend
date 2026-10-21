@@ -1,48 +1,52 @@
-import { useEffect, useSyncExternalStore } from "react";
-import { SESSION_COOKIE, SESSION_COOKIE_MAX_AGE } from "./constants";
+import { useSyncExternalStore } from "react";
+import { SESSION_COOKIE } from "./constants";
 
-const ACCESS_KEY = "accessToken";
-const REFRESH_KEY = "refreshToken";
-
+// The tokens are HttpOnly cookies handled by /api/bff, so all this side can see is the readable flag cookie
+// the server sets next to them: "someone is signed in", with their email for display.
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
-function read(key: string) {
+// tokens used to live in localStorage; drop any left behind by an older build
+if (typeof window !== "undefined") {
   try {
-    return localStorage.getItem(key);
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
   } catch {
-    return null;
+    // blocked site data: nothing could have been stored
   }
 }
 
-// proxy.ts runs on the server and cannot read localStorage, so the login is mirrored in a flag cookie
-function setSessionCookie(on: boolean) {
-  if (typeof document === "undefined") return;
-  const secure = location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `${SESSION_COOKIE}=${on ? "1" : ""}; Path=/; SameSite=Lax; Max-Age=${on ? SESSION_COOKIE_MAX_AGE : 0}${secure}`;
-}
-export const getAccessToken = () => read(ACCESS_KEY);
-export const getRefreshToken = () => read(REFRESH_KEY);
-
-export function setTokens(tokens: { accessToken: string; refreshToken: string }) {
+function readFlag() {
+  if (typeof document === "undefined") return null;
+  const entry = document.cookie.split("; ").find((c) => c.startsWith(`${SESSION_COOKIE}=`));
+  if (!entry) return null;
+  const value = entry.slice(SESSION_COOKIE.length + 1);
   try {
-    localStorage.setItem(ACCESS_KEY, tokens.accessToken);
-    localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
+    return decodeURIComponent(value);
   } catch {
-    // private mode, blocked site data or a full quota: a login that cannot be kept must fail visibly,
-    // and a half-written pair (new access token, old refresh token) must not look signed in
-    clearTokens();
-    throw new Error("This browser blocks site storage, so you cannot stay signed in. Allow site data and try again.");
+    // a malformed value (stray %) still means the flag is set; it just has no usable email
+    return "1";
   }
-  expired = false;
-  setSessionCookie(true);
-  emit();
+}
+
+function dropFlag() {
+  document.cookie = `${SESSION_COOKIE}=; Path=/; Max-Age=0`;
 }
 
 // set when the server rejects the refresh token, so the UI can tell "signed out by expiry" from a log out
 let expired = false;
+
+// call after the BFF has set the cookies (login) or cleared them (logout)
+export function sessionChanged() {
+  expired = false;
+  emit();
+}
+
+// a 401 without the expiry header can mean the login ended in another tab: re-read the flag cookie
+export const recheckSession = emit;
+
 export function expireSession() {
-  clearTokens();
+  dropFlag();
   expired = true;
   emit();
 }
@@ -53,23 +57,15 @@ export function clearSessionExpired() {
   emit();
 }
 
-export function clearTokens() {
-  try {
-    localStorage.removeItem(ACCESS_KEY);
-    localStorage.removeItem(REFRESH_KEY);
-  } catch {
-    // nothing readable is stored, so there is nothing left to clear
-  }
-  setSessionCookie(false);
-  emit();
-}
-
 function subscribe(listener: () => void) {
   listeners.add(listener);
-  window.addEventListener("storage", listener);
+  // shortcut: another tab's login or logout is noticed when this tab regains focus, not instantly
+  window.addEventListener("focus", listener);
+  document.addEventListener("visibilitychange", listener);
   return () => {
     listeners.delete(listener);
-    window.removeEventListener("storage", listener);
+    window.removeEventListener("focus", listener);
+    document.removeEventListener("visibilitychange", listener);
   };
 }
 
@@ -85,28 +81,13 @@ export function useSessionExpired() {
 export function useIsAuthed() {
   return useSyncExternalStore(
     subscribe,
-    () => getRefreshToken() !== null,
+    () => readFlag() !== null,
     () => false,
   );
 }
 
-// the backend sets the JWT subject to the account email; display only, never used for access decisions
-function emailFromToken(token: string | null) {
-  try {
-    const payload = token?.split(".")[1];
-    if (!payload) return undefined;
-    const sub = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))).sub;
-    return typeof sub === "string" && sub ? sub : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 export function useAccountEmail() {
-  return emailFromToken(useSyncExternalStore(subscribe, getAccessToken, () => null));
-}
-
-// heals a cookie that outlived (or lost) its tokens, e.g. after site data was cleared; mount once per page
-export function useSessionCookieSync() {
-  useEffect(() => setSessionCookie(read(REFRESH_KEY) !== null), []);
+  const flag = useSyncExternalStore(subscribe, readFlag, () => null);
+  // "1" is the flag's value when the token carried no email
+  return flag && flag !== "1" ? flag : undefined;
 }

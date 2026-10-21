@@ -1,4 +1,4 @@
-// Backend base URL, including /api/v1. The backend CORS only allows http://localhost:8005.
+// Backend base URL, including /api/v1. The BFF route calls it server side; the browser only uses it for the SSE candle stream.
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080/api/v1";
 

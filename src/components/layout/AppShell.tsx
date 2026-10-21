@@ -27,7 +27,7 @@ import { Logo } from "@/components/common/Logo";
 import { MarketHoursBanner } from "@/components/common/MarketHoursBanner";
 import { useApiLatency } from "@/hooks/trading/useApiLatency";
 import { usePolling } from "@/hooks/trading/usePolling";
-import { useIsAuthed, useSessionCookieSync } from "@/lib/auth/session";
+import { useIsAuthed } from "@/lib/auth/session";
 import { fmt } from "@/lib/format";
 import { getBalances } from "@/services/account.service";
 import { AccountMenu } from "./AccountMenu";
@@ -67,7 +67,6 @@ function SearchBox() {
 }
 
 function BalanceChip() {
-  useSessionCookieSync();
   const authed = useIsAuthed();
   const balances = usePolling(getBalances, 10_000, authed);
   if (!authed) return null;

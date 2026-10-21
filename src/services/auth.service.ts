@@ -1,10 +1,9 @@
 import { apiClient } from "@/lib/axios/client";
-import { clearTokens, getRefreshToken, setTokens } from "@/lib/auth/session";
-import type { AuthTokens } from "@/types/trading";
+import { sessionChanged } from "@/lib/auth/session";
 
 export async function login(email: string, password: string) {
-  const { data } = await apiClient.post<AuthTokens>("/auth/login", { email, password });
-  setTokens(data);
+  await apiClient.post("/auth/login", { email, password });
+  sessionChanged();
 }
 
 export async function register(email: string, password: string, confirmPassword: string) {
@@ -12,10 +11,9 @@ export async function register(email: string, password: string, confirmPassword:
 }
 
 export async function logout() {
-  const refreshToken = getRefreshToken();
   try {
-    if (refreshToken) await apiClient.post("/auth/logout", { refreshToken });
+    await apiClient.post("/auth/logout");
   } finally {
-    clearTokens();
+    sessionChanged();
   }
 }

@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE } from "@/lib/auth/constants";
+import { REFRESH_COOKIE } from "@/lib/auth/constants";
 import { API_ORIGIN } from "@/lib/config";
 
 const PROTECTED = /^\/(portfolio|profile|admin)(\/|$)/;
 
-// Per-request nonce CSP: tokens live in localStorage, so an injected script is the way to steal them.
+// Per-request nonce CSP: an injected script can still call the API as the signed-in user, so it stays strict.
 // style attributes stay inline (cannot run script); <style> tags need the nonce (Emotion gets it in ThemeRegistry).
 function csp(nonce: string) {
   const dev = process.env.NODE_ENV === "development";
@@ -23,12 +23,11 @@ function csp(nonce: string) {
   ].join("; ");
 }
 
-// Optimistic gate: the tokens sit in localStorage, so the server only sees a flag cookie
-// that the client sets. It stops signed-out visitors from loading these pages; the API
-// still checks the Bearer token on every request.
+// Optimistic gate: it only checks that the HttpOnly refresh cookie exists, not that the backend still accepts it.
+// It stops signed-out visitors from loading these pages; the backend still checks the token on every request.
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (PROTECTED.test(pathname) && !request.cookies.get(SESSION_COOKIE)?.value) {
+  if (PROTECTED.test(pathname) && !request.cookies.get(REFRESH_COOKIE)?.value) {
     // cloning nextUrl keeps the public origin and basePath, which request.url loses behind a reverse proxy
     const login = request.nextUrl.clone();
     login.pathname = "/login";
